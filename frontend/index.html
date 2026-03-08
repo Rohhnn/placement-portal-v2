@@ -150,6 +150,7 @@ const Register = {
                         <div class="mb-3"><label class="form-label">Phone</label><input v-model="form.phone" class="form-control"></div>
                         <div class="mb-3"><label class="form-label">Education</label><input v-model="form.education" class="form-control"></div>
                         <div class="mb-3"><label class="form-label">Skills</label><textarea v-model="form.skills" class="form-control" rows="2"></textarea></div>
+                        <div class="mb-3"><label class="form-label">Resume (PDF)</label><input type="file" class="form-control" accept=".pdf" @change="onResumeChange"></div>
                     </template>
                     <button @click="submit" class="btn btn-primary w-100">Register</button>
                     <p class="text-center mt-3">Already have an account? <router-link to="/login">Login</router-link></p>
@@ -157,11 +158,26 @@ const Register = {
             </div>
         </div>
     </div>`,
-    data() { return { form: { username: '', password: '', role: '', company_name: '', industry: '', website: '', hr_contact: '', description: '', full_name: '', email: '', phone: '', education: '', skills: '' } } },
+    data() { return { form: { username: '', password: '', role: '', company_name: '', industry: '', website: '', hr_contact: '', description: '', full_name: '', email: '', phone: '', education: '', skills: '' }, resumeFile: null } },
     methods: {
+        onResumeChange(e) {
+            this.resumeFile = e.target.files[0];
+        },
         async submit() {
             try {
-                const res = await axios.post(API + '/api/register', this.form);
+                let res;
+                if (this.form.role === 'student' && this.resumeFile) {
+                    const fd = new FormData();
+                    for (const key in this.form) {
+                        fd.append(key, this.form[key]);
+                    }
+                    fd.append('resume', this.resumeFile);
+                    res = await axios.post(API + '/api/register', fd, {
+                        headers: { 'Content-Type': 'multipart/form-data' }
+                    });
+                } else {
+                    res = await axios.post(API + '/api/register', this.form);
+                }
                 this.$emit('show-alert', res.data.message, 'success');
                 this.$router.push('/login');
             } catch (e) {
@@ -598,16 +614,40 @@ const StudentProfile = {
         <div class="mb-3"><label class="form-label">Phone</label><input v-model="form.phone" class="form-control"></div>
         <div class="mb-3"><label class="form-label">Education</label><input v-model="form.education" class="form-control"></div>
         <div class="mb-3"><label class="form-label">Skills</label><textarea v-model="form.skills" class="form-control" rows="2"></textarea></div>
+        <div class="mb-3">
+            <label class="form-label">Resume (PDF)</label>
+            <input type="file" class="form-control" accept=".pdf" @change="onFileChange">
+            <small v-if="form.resume_path" class="text-muted">Current: {{ form.resume_path }}</small>
+        </div>
         <button @click="save" class="btn btn-primary">Save Changes</button>
         <router-link to="/student/dashboard" class="btn btn-secondary ms-2">Cancel</router-link>
     </div></div>`,
-    data() { return { form: {} } },
+    data() { return { form: {}, resumeFile: null } },
     async created() { const res = await axios.get(API + '/api/student/profile', authHeaders(this.token)); this.form = res.data; },
     methods: {
+        onFileChange(e) {
+            this.resumeFile = e.target.files[0];
+        },
         async save() {
             try {
-                const res = await axios.put(API + '/api/student/profile', this.form, authHeaders(this.token));
+                const fd = new FormData();
+                fd.append('full_name', this.form.full_name || '');
+                fd.append('email', this.form.email || '');
+                fd.append('phone', this.form.phone || '');
+                fd.append('education', this.form.education || '');
+                fd.append('skills', this.form.skills || '');
+                if (this.resumeFile) {
+                    fd.append('resume', this.resumeFile);
+                }
+                const res = await axios.put(API + '/api/student/profile', fd, {
+                    headers: {
+                        Authorization: 'Bearer ' + this.token,
+                        'Content-Type': 'multipart/form-data'
+                    }
+                });
                 this.$emit('show-alert', res.data.message, 'success');
+                const updated = await axios.get(API + '/api/student/profile', authHeaders(this.token));
+                this.form = updated.data;
             } catch (e) { this.$emit('show-alert', 'Update failed', 'danger'); }
         }
     }
