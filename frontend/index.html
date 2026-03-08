@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Placement Portal V2</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://unpkg.com/vue-router@4/dist/vue-router.global.js"></script>
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+</head>
+<body>
+<div id="app">
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <router-link class="navbar-brand" to="/">Placement Portal V2</router-link>
+            <div class="navbar-nav ms-auto">
+                <template v-if="isLoggedIn">
+                    <template v-if="userRole === 'admin'">
+                        <router-link class="nav-link" to="/admin/dashboard">Dashboard</router-link>
+                        <router-link class="nav-link" to="/admin/companies">Companies</router-link>
+                        <router-link class="nav-link" to="/admin/students">Students</router-link>
+                        <router-link class="nav-link" to="/admin/drives">Drives</router-link>
+                        <router-link class="nav-link" to="/admin/applications">Applications</router-link>
+                    </template>
+                    <template v-if="userRole === 'company'">
+                        <router-link class="nav-link" to="/company/dashboard">Dashboard</router-link>
+                        <router-link class="nav-link" to="/company/create-drive">Create Drive</router-link>
+                    </template>
+                    <template v-if="userRole === 'student'">
+                        <router-link class="nav-link" to="/student/dashboard">Dashboard</router-link>
+                        <router-link class="nav-link" to="/student/drives">Browse Drives</router-link>
+                        <router-link class="nav-link" to="/student/applications">My Applications</router-link>
+                        <router-link class="nav-link" to="/student/profile">Profile</router-link>
+                    </template>
+                    <a class="nav-link" href="#" @click.prevent="logout">Logout</a>
+                </template>
+                <template v-else>
+                    <router-link class="nav-link" to="/login">Login</router-link>
+                    <router-link class="nav-link" to="/register">Register</router-link>
+                </template>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Alert messages -->
+    <div class="container mt-3" v-if="alert.message">
+        <div :class="'alert alert-' + alert.type + ' alert-dismissible fade show'">
+            {{ alert.message }}
+            <button type="button" class="btn-close" @click="alert.message = ''"></button>
+        </div>
+    </div>
+
+    <div class="container mt-4">
+        <router-view
+            :token="token"
+            :user-role="userRole"
+            @show-alert="showAlert"
+        ></router-view>
+    </div>
+</div>
+
+<script>
+const API = 'http://127.0.0.1:5001';
+
+function authHeaders(token) {
+    return { headers: { Authorization: 'Bearer ' + token } };
+}
+
+// ---- Login ----
+const Login = {
+    props: ['token'],
+    emits: ['show-alert'],
+    template: `
+    <div class="row justify-content-center">
+        <div class="col-md-5">
+            <div class="card mt-5">
+                <div class="card-header text-center"><h4>Login</h4></div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label">Username</label>
+                        <input v-model="username" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Password</label>
+                        <input v-model="password" type="password" class="form-control" required>
+                    </div>
+                    <button @click="submit" class="btn btn-primary w-100">Login</button>
+                    <p class="text-center mt-3">Don't have an account? <router-link to="/register">Register</router-link></p>
+                </div>
+            </div>
+        </div>
+    </div>`,
+    data() { return { username: '', password: '' } },
+    methods: {
+        async submit() {
+            try {
+                const res = await axios.post(API + '/api/login', {
+                    username: this.username, password: this.password
+                });
+                localStorage.setItem('token', res.data.token);
+                localStorage.setItem('role', res.data.user.role);
+                localStorage.setItem('username', res.data.user.username);
+                this.$root.token = res.data.token;
+                this.$root.userRole = res.data.user.role;
+                this.$router.push('/' + res.data.user.role + '/dashboard');
+            } catch (e) {
+                this.$emit('show-alert', e.response?.data?.error || 'Login failed', 'danger');
+            }
+        }
+    }
+};
+
+// ---- Register ----
+const Register = {
+    emits: ['show-alert'],
+    template: `
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card mt-4">
+                <div class="card-header text-center"><h4>Register</h4></div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label">Username</label>
+                        <input v-model="form.username" class="form-control">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Password</label>
+                        <input v-model="form.password" type="password" class="form-control">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Register as</label>
+                        <select v-model="form.role" class="form-select">
+                            <option value="" disabled>Select role</option>
+                            <option value="company">Company</option>
+                            <option value="student">Student</option>
+                        </select>
+                    </div>
+                    <template v-if="form.role === 'company'">
+                        <div class="mb-3"><label class="form-label">Company Name</label><input v-model="form.company_name" class="form-control"></div>
+                        <div class="mb-3"><label class="form-label">Industry</label><input v-model="form.industry" class="form-control"></div>
+                        <div class="mb-3"><label class="form-label">Website</label><input v-model="form.website" class="form-control"></div>
+                        <div class="mb-3"><label class="form-label">HR Contact</label><input v-model="form.hr_contact" class="form-control"></div>
+                        <div class="mb-3"><label class="form-label">Description</label><textarea v-model="form.description" class="form-control" rows="3"></textarea></div>
+                    </template>
+                    <template v-if="form.role === 'student'">
+                        <div class="mb-3"><label class="form-label">Full Name</label><input v-model="form.full_name" class="form-control"></div>
+                        <div class="mb-3"><label class="form-label">Email</label><input v-model="form.email" class="form-control"></div>
+                        <div class="mb-3"><label class="form-label">Phone</label><input v-model="form.phone" class="form-control"></div>
+                        <div class="mb-3"><label class="form-label">Education</label><input v-model="form.education" class="form-control"></div>
+                        <div class="mb-3"><label class="form-label">Skills</label><textarea v-model="form.skills" class="form-control" rows="2"></textarea></div>
+                    </template>
+                    <button @click="submit" class="btn btn-primary w-100">Register</button>
+                    <p class="text-center mt-3">Already have an account? <router-link to="/login">Login</router-link></p>
+                </div>
+            </div>
+        </div>
+    </div>`,
+    data() { return { form: { username: '', password: '', role: '', company_name: '', industry: '', website: '', hr_contact: '', description: '', full_name: '', email: '', phone: '', education: '', skills: '' } } },
+    methods: {
+        async submit() {
+            try {
+                const res = await axios.post(API + '/api/register', this.form);
+                this.$emit('show-alert', res.data.message, 'success');
+                this.$router.push('/login');
+            } catch (e) {
+                this.$emit('show-alert', e.response?.data?.error || 'Registration failed', 'danger');
+            }
+        }
+    }
+};
+
+// ---- Admin Dashboard ----
+const AdminDashboard = {
+    props: ['token'],
+    template: `
+    <div>
+        <h2 class="mb-4">Admin Dashboard</h2>
+        <div class="row">
+            <div class="col-md-3 mb-3"><div class="card text-white bg-primary"><div class="card-body text-center"><h5>Companies</h5><h2>{{ stats.total_companies }}</h2><small>{{ stats.pending_companies }} pending</small></div></div></div>
+            <div class="col-md-3 mb-3"><div class="card text-white bg-success"><div class="card-body text-center"><h5>Students</h5><h2>{{ stats.total_students }}</h2></div></div></div>
+            <div class="col-md-3 mb-3"><div class="card text-white bg-info"><div class="card-body text-center"><h5>Drives</h5><h2>{{ stats.total_drives }}</h2><small>{{ stats.pending_drives }} pending</small></div></div></div>
+            <div class="col-md-3 mb-3"><div class="card text-white bg-warning"><div class="card-body text-center"><h5>Applications</h5><h2>{{ stats.total_applications }}</h2></div></div></div>
+        </div>
+        <div class="row mt-3">
+            <div class="col-md-3"><router-link to="/admin/companies" class="btn btn-outline-primary w-100">Manage Companies</router-link></div>
+            <div class="col-md-3"><router-link to="/admin/students" class="btn btn-outline-success w-100">Manage Students</router-link></div>
+            <div class="col-md-3"><router-link to="/admin/drives" class="btn btn-outline-info w-100">Manage Drives</router-link></div>
+            <div class="col-md-3"><router-link to="/admin/applications" class="btn btn-outline-warning w-100">View Applications</router-link></div>
+        </div>
+    </div>`,
+    data() { return { stats: {} } },
+    async created() {
+        const res = await axios.get(API + '/api/admin/dashboard', authHeaders(this.token));
+        this.stats = res.data;
+    }
+};
+
+// ---- Admin Companies ----
+const AdminCompanies = {
+    props: ['token'],
+    emits: ['show-alert'],
+    template: `
+    <div>
+        <h2 class="mb-4">Manage Companies</h2>
+        <div class="input-group mb-4">
+            <input v-model="search" class="form-control" placeholder="Search by name or industry" @keyup.enter="load">
+            <button class="btn btn-primary" @click="load">Search</button>
+            <button v-if="search" class="btn btn-secondary" @click="search=''; load()">Clear</button>
+        </div>
+        <table class="table table-bordered table-hover">
+            <thead class="table-dark"><tr><th>ID</th><th>Name</th><th>Industry</th><th>HR Contact</th><th>Status</th><th>Blacklisted</th><th>Actions</th></tr></thead>
+            <tbody>
+                <tr v-for="c in companies" :key="c.id">
+                    <td>{{ c.id }}</td><td>{{ c.company_name }}</td><td>{{ c.industry || '-' }}</td><td>{{ c.hr_contact || '-' }}</td>
+                    <td><span :class="'badge bg-' + statusColor(c.approval_status)">{{ c.approval_status }}</span></td>
+                    <td><span :class="'badge bg-' + (c.is_blacklisted ? 'danger' : 'secondary')">{{ c.is_blacklisted ? 'Yes' : 'No' }}</span></td>
+                    <td>
+                        <button v-if="c.approval_status==='pending'" class="btn btn-sm btn-success me-1" @click="action(c.id,'approve')">Approve</button>
+                        <button v-if="c.approval_status==='pending'" class="btn btn-sm btn-danger me-1" @click="action(c.id,'reject')">Reject</button>
+                        <button class="btn btn-sm btn-dark" @click="action(c.id,'blacklist')">{{ c.is_blacklisted ? 'Unblacklist' : 'Blacklist' }}</button>
+                    </td>
+                </tr>
+                <tr v-if="!companies.length"><td colspan="7" class="text-center">No companies found.</td></tr>
+            </tbody>
+        </table>
+    </div>`,
+    data() { return { companies: [], search: '' } },
+    created() { this.load(); },
+    methods: {
+        async load() {
+            const res = await axios.get(API + '/api/admin/companies?search=' + this.search, authHeaders(this.token));
+            this.companies = res.data;
+        },
+        async action(id, act) {
+            const res = await axios.put(API + '/api/admin/company/' + id + '/' + act, {}, authHeaders(this.token));
+            this.$emit('show-alert', res.data.message, 'success');
+            this.load();
+        },
+        statusColor(s) { return s === 'approved' ? 'success' : s === 'rejected' ? 'danger' : 'warning'; }
+    }
+};
+
+// ---- Admin Students ----
+const AdminStudents = {
+    props: ['token'],
+    emits: ['show-alert'],
+    template: `
+    <div>
+        <h2 class="mb-4">Manage Students</h2>
+        <div class="input-group mb-4">
+            <input v-model="search" class="form-control" placeholder="Search by name, email, or phone" @keyup.enter="load">
+            <button class="btn btn-primary" @click="load">Search</button>
+            <button v-if="search" class="btn btn-secondary" @click="search=''; load()">Clear</button>
+        </div>
+        <table class="table table-bordered table-hover">
+            <thead class="table-dark"><tr><th>ID</th><th>Name</th><th>Email</th><th>Phone</th><th>Education</th><th>Skills</th><th>Blacklisted</th><th>Actions</th></tr></thead>
+            <tbody>
+                <tr v-for="s in students" :key="s.id">
+                    <td>{{ s.id }}</td><td>{{ s.full_name }}</td><td>{{ s.email || '-' }}</td><td>{{ s.phone || '-' }}</td>
+                    <td>{{ s.education || '-' }}</td><td>{{ s.skills || '-' }}</td>
+                    <td><span :class="'badge bg-' + (s.is_blacklisted ? 'danger' : 'secondary')">{{ s.is_blacklisted ? 'Yes' : 'No' }}</span></td>
+                    <td><button class="btn btn-sm btn-dark" @click="blacklist(s.id)">{{ s.is_blacklisted ? 'Unblacklist' : 'Blacklist' }}</button></td>
+                </tr>
+                <tr v-if="!students.length"><td colspan="8" class="text-center">No students found.</td></tr>
+            </tbody>
+        </table>
+    </div>`,
+    data() { return { students: [], search: '' } },
+    created() { this.load(); },
+    methods: {
+        async load() {
+            const res = await axios.get(API + '/api/admin/students?search=' + this.search, authHeaders(this.token));
+            this.students = res.data;
+        },
+        async blacklist(id) {
+            const res = await axios.put(API + '/api/admin/student/' + id + '/blacklist', {}, authHeaders(this.token));
+            this.$emit('show-alert', res.data.message, 'success');
+            this.load();
+        }
+    }
+};
+
+// ---- Admin Drives ----
+const AdminDrives = {
+    props: ['token'],
+    emits: ['show-alert'],
+    template: `
+    <div>
+        <h2 class="mb-4">Manage Placement Drives</h2>
+        <table class="table table-bordered table-hover">
+            <thead class="table-dark"><tr><th>ID</th><th>Job Title</th><th>Company</th><th>Salary</th><th>Deadline</th><th>Status</th><th>Apps</th><th>Actions</th></tr></thead>
+            <tbody>
+                <tr v-for="d in drives" :key="d.id">
+                    <td>{{ d.id }}</td><td>{{ d.job_title }}</td><td>{{ d.company_name }}</td><td>{{ d.salary_range || '-' }}</td>
+                    <td>{{ d.application_deadline || '-' }}</td>
+                    <td><span :class="'badge bg-' + statusColor(d.status)">{{ d.status }}</span></td>
+                    <td>{{ d.application_count }}</td>
+                    <td>
+                        <button v-if="d.status==='pending'" class="btn btn-sm btn-success me-1" @click="action(d.id,'approve')">Approve</button>
+                        <button v-if="d.status==='pending'" class="btn btn-sm btn-danger" @click="action(d.id,'reject')">Reject</button>
+                    </td>
+                </tr>
+                <tr v-if="!drives.length"><td colspan="8" class="text-center">No drives found.</td></tr>
+            </tbody>
+        </table>
+    </div>`,
+    data() { return { drives: [] } },
+    async created() { const res = await axios.get(API + '/api/admin/drives', authHeaders(this.token)); this.drives = res.data; },
+    methods: {
+        async action(id, act) {
+            const res = await axios.put(API + '/api/admin/drive/' + id + '/' + act, {}, authHeaders(this.token));
+            this.$emit('show-alert', res.data.message, 'success');
+            const r = await axios.get(API + '/api/admin/drives', authHeaders(this.token)); this.drives = r.data;
+        },
+        statusColor(s) { return s === 'approved' ? 'success' : s === 'rejected' ? 'danger' : s === 'closed' ? 'secondary' : 'warning'; }
+    }
+};
+
+// ---- Admin Applications ----
+const AdminApplications = {
+    props: ['token'],
+    template: `
+    <div>
+        <h2 class="mb-4">All Applications</h2>
+        <table class="table table-bordered table-hover">
+            <thead class="table-dark"><tr><th>ID</th><th>Student</th><th>Drive</th><th>Company</th><th>Date</th><th>Status</th></tr></thead>
+            <tbody>
+                <tr v-for="a in apps" :key="a.id">
+                    <td>{{ a.id }}</td><td>{{ a.student_name }}</td><td>{{ a.drive_title }}</td><td>{{ a.company_name }}</td>
+                    <td>{{ a.application_date }}</td>
+                    <td><span :class="'badge bg-' + statusColor(a.status)">{{ a.status }}</span></td>
+                </tr>
+                <tr v-if="!apps.length"><td colspan="6" class="text-center">No applications found.</td></tr>
+            </tbody>
+        </table>
+    </div>`,
+    data() { return { apps: [] } },
+    async created() { const res = await axios.get(API + '/api/admin/applications', authHeaders(this.token)); this.apps = res.data; },
+    methods: { statusColor(s) { return s === 'applied' ? 'primary' : s === 'shortlisted' ? 'info' : s === 'selected' ? 'success' : 'danger'; } }
+};
+
+// ---- Company Dashboard ----
+const CompanyDashboard = {
+    props: ['token'],
+    emits: ['show-alert'],
+    template: `
+    <div>
+        <h2 class="mb-4">Company Dashboard</h2>
+        <div class="card mb-4" v-if="company">
+            <div class="card-body">
+                <h5>{{ company.company_name }}</h5>
+                <p>Industry: {{ company.industry || '-' }} | HR: {{ company.hr_contact || '-' }} | Website: {{ company.website || '-' }}</p>
+            </div>
+        </div>
+        <div class="d-flex justify-content-between mb-3">
+            <h4>Your Placement Drives</h4>
+            <router-link to="/company/create-drive" class="btn btn-primary">Create New Drive</router-link>
+        </div>
+        <table class="table table-bordered table-hover">
+            <thead class="table-dark"><tr><th>Job Title</th><th>Salary</th><th>Deadline</th><th>Status</th><th>Apps</th><th>Actions</th></tr></thead>
+            <tbody>
+                <tr v-for="d in drives" :key="d.id">
+                    <td>{{ d.job_title }}</td><td>{{ d.salary_range || '-' }}</td><td>{{ d.application_deadline || '-' }}</td>
+                    <td><span :class="'badge bg-' + statusColor(d.status)">{{ d.status }}</span></td>
+                    <td>{{ d.application_count }}</td>
+                    <td>
+                        <router-link v-if="d.status==='approved'||d.status==='closed'" :to="'/company/drive/'+d.id+'/applications'" class="btn btn-sm btn-info me-1">View Apps</router-link>
+                        <button v-if="d.status==='approved'" class="btn btn-sm btn-secondary" @click="closeDrive(d.id)">Close</button>
+                        <button v-if="d.status==='closed'" class="btn btn-sm btn-success" @click="reopenDrive(d.id)">Reopen</button>
+                    </td>
+                </tr>
+                <tr v-if="!drives.length"><td colspan="6" class="text-center">No drives yet.</td></tr>
+            </tbody>
+        </table>
+    </div>`,
+    data() { return { company: null, drives: [] } },
+    async created() { this.load(); },
+    methods: {
+        async load() { const res = await axios.get(API + '/api/company/dashboard', authHeaders(this.token)); this.company = res.data.company; this.drives = res.data.drives; },
+        async closeDrive(id) { await axios.put(API + '/api/company/drive/' + id + '/close', {}, authHeaders(this.token)); this.$emit('show-alert', 'Drive closed', 'info'); this.load(); },
+        async reopenDrive(id) { await axios.put(API + '/api/company/drive/' + id + '/reopen', {}, authHeaders(this.token)); this.$emit('show-alert', 'Drive reopened', 'success'); this.load(); },
+        statusColor(s) { return s === 'approved' ? 'success' : s === 'rejected' ? 'danger' : s === 'closed' ? 'secondary' : 'warning'; }
+    }
+};
+
+// ---- Company Create Drive ----
+const CompanyCreateDrive = {
+    props: ['token'],
+    emits: ['show-alert'],
+    template: `
+    <div class="row justify-content-center"><div class="col-md-7">
+        <h2 class="mb-4">Create Placement Drive</h2>
+        <div class="mb-3"><label class="form-label">Job Title</label><input v-model="form.job_title" class="form-control" required></div>
+        <div class="mb-3"><label class="form-label">Job Description</label><textarea v-model="form.job_description" class="form-control" rows="4"></textarea></div>
+        <div class="mb-3"><label class="form-label">Eligibility Criteria</label><textarea v-model="form.eligibility_criteria" class="form-control" rows="2"></textarea></div>
+        <div class="mb-3"><label class="form-label">Skills Required</label><input v-model="form.skills_required" class="form-control"></div>
+        <div class="mb-3"><label class="form-label">Salary Range</label><input v-model="form.salary_range" class="form-control"></div>
+        <div class="mb-3"><label class="form-label">Application Deadline</label><input v-model="form.application_deadline" type="date" class="form-control"></div>
+        <button @click="submit" class="btn btn-primary">Create Drive</button>
+        <router-link to="/company/dashboard" class="btn btn-secondary ms-2">Cancel</router-link>
+    </div></div>`,
+    data() { return { form: { job_title: '', job_description: '', eligibility_criteria: '', skills_required: '', salary_range: '', application_deadline: '' } } },
+    methods: {
+        async submit() {
+            try {
+                const res = await axios.post(API + '/api/company/drives', this.form, authHeaders(this.token));
+                this.$emit('show-alert', res.data.message, 'success');
+                this.$router.push('/company/dashboard');
+            } catch (e) { this.$emit('show-alert', e.response?.data?.error || 'Failed', 'danger'); }
+        }
+    }
+};
+
+// ---- Company View Applications ----
+const CompanyViewApplications = {
+    props: ['token'],
+    emits: ['show-alert'],
+    template: `
+    <div>
+        <h2 class="mb-4">Applications for Drive</h2>
+        <table class="table table-bordered table-hover">
+            <thead class="table-dark"><tr><th>Student</th><th>Email</th><th>Education</th><th>Skills</th><th>Date</th><th>Status</th><th>Update</th></tr></thead>
+            <tbody>
+                <tr v-for="a in apps" :key="a.id">
+                    <td>{{ a.student.full_name }}</td><td>{{ a.student.email || '-' }}</td><td>{{ a.student.education || '-' }}</td><td>{{ a.student.skills || '-' }}</td>
+                    <td>{{ a.application_date }}</td>
+                    <td><span :class="'badge bg-' + statusColor(a.status)">{{ a.status }}</span></td>
+                    <td>
+                        <div class="d-flex gap-1">
+                            <select v-model="a.newStatus" class="form-select form-select-sm">
+                                <option value="shortlisted">Shortlisted</option>
+                                <option value="selected">Selected</option>
+                                <option value="rejected">Rejected</option>
+                            </select>
+                            <button class="btn btn-sm btn-primary" @click="update(a)">Update</button>
+                        </div>
+                    </td>
+                </tr>
+                <tr v-if="!apps.length"><td colspan="7" class="text-center">No applications.</td></tr>
+            </tbody>
+        </table>
+        <router-link to="/company/dashboard" class="btn btn-secondary">Back</router-link>
+    </div>`,
+    data() { return { apps: [] } },
+    async created() {
+        const did = this.$route.params.id;
+        const res = await axios.get(API + '/api/company/drive/' + did + '/applications', authHeaders(this.token));
+        this.apps = res.data.map(a => ({ ...a, newStatus: a.status }));
+    },
+    methods: {
+        async update(a) {
+            const res = await axios.put(API + '/api/company/application/' + a.id + '/update', { status: a.newStatus }, authHeaders(this.token));
+            this.$emit('show-alert', res.data.message, 'success');
+            a.status = a.newStatus;
+        },
+        statusColor(s) { return s === 'applied' ? 'primary' : s === 'shortlisted' ? 'info' : s === 'selected' ? 'success' : 'danger'; }
+    }
+};
+
+// ---- Student Dashboard ----
+const StudentDashboard = {
+    props: ['token'],
+    template: `
+    <div>
+        <h2 class="mb-4">Welcome, {{ data.student?.full_name }}</h2>
+        <div class="card mb-4 border-info" v-if="data.notifications?.length">
+            <div class="card-header bg-info text-white">Notifications</div>
+            <div class="card-body">
+                <p v-for="n in data.notifications">
+                    Your application for <strong>{{ n.drive_title }}</strong> at <strong>{{ n.company_name }}</strong>:
+                    <span :class="'badge bg-' + (n.status==='selected'?'success':n.status==='shortlisted'?'info':'danger')">{{ n.status }}</span>
+                </p>
+            </div>
+        </div>
+        <div class="row mb-4">
+            <div class="col-md-4"><div class="card text-white bg-primary"><div class="card-body text-center"><h5>Available Drives</h5><h2>{{ data.available_drives }}</h2></div></div></div>
+            <div class="col-md-4"><div class="card text-white bg-success"><div class="card-body text-center"><h5>My Applications</h5><h2>{{ data.total_applications }}</h2></div></div></div>
+            <div class="col-md-4"><div class="card text-white bg-info"><div class="card-body text-center"><h5>Profile</h5><router-link to="/student/profile" class="btn btn-light btn-sm mt-2">Edit</router-link></div></div></div>
+        </div>
+        <div class="row">
+            <div class="col-md-6"><router-link to="/student/drives" class="btn btn-outline-primary w-100">Browse Drives</router-link></div>
+            <div class="col-md-6"><router-link to="/student/applications" class="btn btn-outline-success w-100">My Applications</router-link></div>
+        </div>
+    </div>`,
+    data() { return { data: {} } },
+    async created() { const res = await axios.get(API + '/api/student/dashboard', authHeaders(this.token)); this.data = res.data; }
+};
+
+// ---- Student Browse Drives ----
+const StudentDrives = {
+    props: ['token'],
+    emits: ['show-alert'],
+    template: `
+    <div>
+        <h2 class="mb-4">Browse Placement Drives</h2>
+        <div class="input-group mb-4">
+            <input v-model="search" class="form-control" placeholder="Search by title or skills" @keyup.enter="load">
+            <button class="btn btn-primary" @click="load">Search</button>
+            <button v-if="search" class="btn btn-secondary" @click="search=''; load()">Clear</button>
+        </div>
+        <table class="table table-bordered table-hover">
+            <thead class="table-dark"><tr><th>Job Title</th><th>Company</th><th>Skills</th><th>Salary</th><th>Deadline</th><th>Action</th></tr></thead>
+            <tbody>
+                <tr v-for="d in drives" :key="d.id">
+                    <td>{{ d.job_title }}</td><td>{{ d.company_name }}</td><td>{{ d.skills_required || '-' }}</td><td>{{ d.salary_range || '-' }}</td><td>{{ d.application_deadline || '-' }}</td>
+                    <td>
+                        <span v-if="d.already_applied" class="badge bg-secondary">Already Applied</span>
+                        <button v-else class="btn btn-sm btn-success" @click="apply(d.id)">Apply</button>
+                    </td>
+                </tr>
+                <tr v-if="!drives.length"><td colspan="6" class="text-center">No drives available.</td></tr>
+            </tbody>
+        </table>
+    </div>`,
+    data() { return { drives: [], search: '' } },
+    created() { this.load(); },
+    methods: {
+        async load() { const res = await axios.get(API + '/api/student/drives?search=' + this.search, authHeaders(this.token)); this.drives = res.data; },
+        async apply(id) {
+            try {
+                const res = await axios.post(API + '/api/student/apply/' + id, {}, authHeaders(this.token));
+                this.$emit('show-alert', res.data.message, 'success');
+                this.load();
+            } catch (e) { this.$emit('show-alert', e.response?.data?.error || 'Failed', 'danger'); }
+        }
+    }
+};
+
+// ---- Student My Applications ----
+const StudentApplications = {
+    props: ['token'],
+    template: `
+    <div>
+        <h2 class="mb-4">My Applications</h2>
+        <table class="table table-bordered table-hover">
+            <thead class="table-dark"><tr><th>Job Title</th><th>Company</th><th>Date</th><th>Status</th></tr></thead>
+            <tbody>
+                <tr v-for="a in apps" :key="a.id">
+                    <td>{{ a.drive_title }}</td><td>{{ a.company_name }}</td><td>{{ a.application_date }}</td>
+                    <td><span :class="'badge bg-' + statusColor(a.status)">{{ a.status }}</span></td>
+                </tr>
+                <tr v-if="!apps.length"><td colspan="4" class="text-center">No applications yet.</td></tr>
+            </tbody>
+        </table>
+    </div>`,
+    data() { return { apps: [] } },
+    async created() { const res = await axios.get(API + '/api/student/applications', authHeaders(this.token)); this.apps = res.data; },
+    methods: { statusColor(s) { return s === 'applied' ? 'primary' : s === 'shortlisted' ? 'info' : s === 'selected' ? 'success' : 'danger'; } }
+};
+
+// ---- Student Profile ----
+const StudentProfile = {
+    props: ['token'],
+    emits: ['show-alert'],
+    template: `
+    <div class="row justify-content-center"><div class="col-md-6">
+        <h2 class="mb-4">Edit Profile</h2>
+        <div class="mb-3"><label class="form-label">Full Name</label><input v-model="form.full_name" class="form-control"></div>
+        <div class="mb-3"><label class="form-label">Email</label><input v-model="form.email" class="form-control"></div>
+        <div class="mb-3"><label class="form-label">Phone</label><input v-model="form.phone" class="form-control"></div>
+        <div class="mb-3"><label class="form-label">Education</label><input v-model="form.education" class="form-control"></div>
+        <div class="mb-3"><label class="form-label">Skills</label><textarea v-model="form.skills" class="form-control" rows="2"></textarea></div>
+        <button @click="save" class="btn btn-primary">Save Changes</button>
+        <router-link to="/student/dashboard" class="btn btn-secondary ms-2">Cancel</router-link>
+    </div></div>`,
+    data() { return { form: {} } },
+    async created() { const res = await axios.get(API + '/api/student/profile', authHeaders(this.token)); this.form = res.data; },
+    methods: {
+        async save() {
+            try {
+                const res = await axios.put(API + '/api/student/profile', this.form, authHeaders(this.token));
+                this.$emit('show-alert', res.data.message, 'success');
+            } catch (e) { this.$emit('show-alert', 'Update failed', 'danger'); }
+        }
+    }
+};
+
+// ---- Router ----
+const routes = [
+    { path: '/', redirect: '/login' },
+    { path: '/login', component: Login },
+    { path: '/register', component: Register },
+    { path: '/admin/dashboard', component: AdminDashboard },
+    { path: '/admin/companies', component: AdminCompanies },
+    { path: '/admin/students', component: AdminStudents },
+    { path: '/admin/drives', component: AdminDrives },
+    { path: '/admin/applications', component: AdminApplications },
+    { path: '/company/dashboard', component: CompanyDashboard },
+    { path: '/company/create-drive', component: CompanyCreateDrive },
+    { path: '/company/drive/:id/applications', component: CompanyViewApplications },
+    { path: '/student/dashboard', component: StudentDashboard },
+    { path: '/student/drives', component: StudentDrives },
+    { path: '/student/applications', component: StudentApplications },
+    { path: '/student/profile', component: StudentProfile },
+];
+
+const router = VueRouter.createRouter({
+    history: VueRouter.createWebHashHistory(),
+    routes
+});
+
+const app = Vue.createApp({
+    data() {
+        return {
+            token: localStorage.getItem('token') || '',
+            userRole: localStorage.getItem('role') || '',
+            alert: { message: '', type: 'info' }
+        };
+    },
+    computed: {
+        isLoggedIn() { return !!this.token; }
+    },
+    methods: {
+        logout() {
+            localStorage.removeItem('token');
+            localStorage.removeItem('role');
+            localStorage.removeItem('username');
+            this.token = '';
+            this.userRole = '';
+            this.$router.push('/login');
+        },
+        showAlert(msg, type) {
+            this.alert = { message: msg, type: type || 'info' };
+            setTimeout(() => { this.alert.message = ''; }, 4000);
+        }
+    }
+});
+
+app.use(router);
+app.mount('#app');
+</script>
+</body>
+</html>
