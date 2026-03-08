@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from backend.extensions import db
+from backend.extensions import db, cache
 from backend.models import Company, Student, PlacementDrive, Application
 from backend.routes.auth import token_required, role_required
 
@@ -9,6 +9,7 @@ admin_bp = Blueprint('admin', __name__)
 @admin_bp.route('/api/admin/dashboard')
 @token_required
 @role_required('admin')
+@cache.cached(timeout=60, key_prefix='admin_dashboard')
 def dashboard(current_user):
     return jsonify({
         'total_companies': Company.query.count(),

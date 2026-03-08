@@ -1,7 +1,7 @@
 import os
 from flask import Blueprint, request, jsonify, current_app
 from werkzeug.utils import secure_filename
-from backend.extensions import db
+from backend.extensions import db, cache
 from backend.models import PlacementDrive, Application, Student
 from backend.routes.auth import token_required, role_required
 

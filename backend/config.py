@@ -8,3 +8,6 @@ class Config:
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     UPLOAD_FOLDER = os.path.join(basedir, '..', 'static', 'uploads')
     JWT_EXPIRATION_HOURS = 24
+    CACHE_TYPE = 'RedisCache'
+    CACHE_REDIS_URL = 'redis://localhost:6379/2'
+    CACHE_DEFAULT_TIMEOUT = 300

@@ -1,12 +1,11 @@
 import os
 import sys
 
-# Adding parent directory to path so that 'backend' package is importable
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from flask import Flask, send_from_directory
 from backend.config import Config
-from backend.extensions import db
+from backend.extensions import db, cache
 from werkzeug.security import generate_password_hash
 
 
@@ -15,17 +14,19 @@ def create_app():
     app.config.from_object(Config)
 
     db.init_app(app)
+    cache.init_app(app)
 
-    # Register blueprints
     from backend.routes.auth import auth_bp
     from backend.routes.admin import admin_bp
     from backend.routes.company import company_bp
     from backend.routes.student import student_bp
+    from backend.routes.jobs import jobs_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(admin_bp)
     app.register_blueprint(company_bp)
     app.register_blueprint(student_bp)
+    app.register_blueprint(jobs_bp)
 
     with app.app_context():
         from backend.models import User
@@ -51,7 +52,6 @@ def seed_admin():
 app = create_app()
 
 
-# Serve Vue frontend
 @app.route('/')
 def serve_frontend():
     return send_from_directory('../frontend', 'index.html')
