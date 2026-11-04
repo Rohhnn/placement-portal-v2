@@ -38,18 +38,29 @@ The schema is as follows:
 ## Project structure
 
 ```
-backend/
-  app.py              # Application factory
-  models.py           # SQLAlchemy models
-  config.py           # Configuration
-  extensions.py       # db and cache
-  celery_worker.py    # Celery app and tasks
-  routes/             # auth, admin, company, student, jobs
-frontend/
-  index.html          # Vue SPA
-  src/main.js
-static/               # uploads, exports, generated reports
+.gitignore
+README.md
 requirements.txt
+backend/
+  app.py               # Application factory
+  models.py            # SQLAlchemy models
+  config.py            # Configuration
+  extensions.py        # db and cache
+  celery_worker.py     # Celery app and tasks
+  routes/
+    __init__.py
+    auth.py
+    admin.py
+    company.py
+    student.py
+    jobs.py
+frontend/
+  index.html           # Vue SPA
+  src/main.js
+static/
+  uploads/             # Resume uploads (contents ignored)
+  exports/             # CSV exports (contents ignored)
+  reports/             # Generated monthly reports (contents ignored)
 ```
 
 ## Setup
