@@ -4,3 +4,10 @@ __pycache__/
 *.db
 instance/
 .env
+celerybeat-schedule*
+static/uploads/*
+static/exports/*
+static/reports/*
+!static/uploads/.gitkeep
+!static/exports/.gitkeep
+!static/reports/.gitkeep
